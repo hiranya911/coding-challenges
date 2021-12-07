@@ -19,6 +19,4 @@ fun getMinimumFuelUsage2(positions: List<Int>): Int =
     (0..positions.maxOf { it }).minOf { pos -> positions.sumOf { arithmeticSum(pos, it) } }
 
 fun arithmeticSum(a: Int, l: Int): Int =
-    abs(l - a).let { terms ->
-        (1 + terms) * terms / 2
-    }
+    abs(l - a).let { (1 + it) * it / 2 }
