@@ -43,19 +43,16 @@ class Display(private val inputs: List<String>, private val outputs: List<String
     }
 
     companion object {
-        fun fromSting(line: String): Display {
-            val inputs = line.substringBefore(" |").split(" ")
-            val outputs = line.substringAfter("| ").split(" ")
-            return Display(inputs, outputs)
-        }
+        fun fromSting(line: String): Display =
+            Display(
+                line.substringBefore(" |").split(" "),
+                line.substringAfter("| ").split(" ")
+            )
     }
 }
 
-fun <T> MutableList<T>.findAndRemove(pred: (s: T) -> Boolean): T {
-    val result = this.first { pred(it) }
-    this.remove(result)
-    return result
-}
+fun <T> MutableList<T>.findAndRemove(pred: (s: T) -> Boolean): T =
+    first { pred(it) }.also { remove(it) }
 
 fun Int.pow(n: Int): Int =
     this.toDouble().pow(n).toInt()
