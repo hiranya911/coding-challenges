@@ -17,27 +17,26 @@ fun main() {
 class FoldingPaper(private val dots: Set<Pair<Int, Int>>, private val folds: List<Fold>) {
     private val xlim: Int = dots.maxOf { it.first }
     private val ylim: Int = dots.maxOf { it.second }
-
     val dotCount: Int = dots.size
     val hasFolds: Boolean = folds.isNotEmpty()
 
     fun foldNext(): FoldingPaper {
         val fold = folds[0]
         return if (fold.axis == Axis.X) {
-            FoldingPaper(xfold(fold.pos), folds.subList(1, folds.size))
+            FoldingPaper(xfold(fold.pos), folds.drop(1))
         } else {
-            FoldingPaper(yfold(fold.pos), folds.subList(1, folds.size))
+            FoldingPaper(yfold(fold.pos), folds.drop(1))
         }
     }
 
     private fun xfold(pos: Int): Set<Pair<Int, Int>> {
         val (left, right) = dots.partition { it.first <= pos }
-        return right.map { Pair(2 * pos - it.first, it.second) }.toSet().union(left)
+        return right.map { Pair(2 * pos - it.first, it.second) }.union(left)
     }
 
     private fun yfold(pos: Int): Set<Pair<Int, Int>> {
         val (up, down) = dots.partition { it.second <= pos }
-        return down.map { Pair(it.first, 2 * pos - it.second) }.toSet().union(up)
+        return down.map { Pair(it.first, 2 * pos - it.second) }.union(up)
     }
 
     fun print() {
@@ -63,17 +62,14 @@ class FoldingPaper(private val dots: Set<Pair<Int, Int>>, private val folds: Lis
     }
 }
 
-enum class Axis {
-    X,
-    Y
-}
+enum class Axis { X, Y }
 
 class Fold(val axis: Axis, val pos: Int) {
     companion object {
-        fun fromLine(line: String): Fold {
-            val segments = line.substringAfter("fold along ").split("=")
-            return Fold(if (segments[0] == "x") Axis.X else Axis.Y, segments[1].toInt())
-        }
+        fun fromLine(line: String): Fold =
+            line.substringAfter("fold along ").split("=").let {
+                Fold(if (it[0] == "x") Axis.X else Axis.Y, it[1].toInt())
+            }
     }
 }
 
