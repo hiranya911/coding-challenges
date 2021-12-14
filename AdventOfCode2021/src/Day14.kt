@@ -9,42 +9,40 @@ fun main() {
     println("After 40 steps = ${poly.process(lines[0], 40)}")
 }
 
-class Polymerization(private val rules: Map<Pair<Char, Char>, PairInsertion>) {
+class Polymerization(private val rules: Map<String, PairInsertion>) {
 
     fun process(input: String, steps: Int): Long {
-        val counts = input.groupingBy { it }.eachCount().mapValues { it.value.toLong() }.toMutableMap()
-        var pairs = input.zipWithNext().groupingBy { it }.eachCount().mapValues { it.value.toLong() }
+        var pairs = input.zipWithNext().map { "${it.first}${it.second}" }
+            .groupingBy { it }
+            .eachCount()
+            .mapValues { it.value.toLong() }
         for (i in 1..steps) {
-            val newPairs = mutableMapOf<Pair<Char, Char>, Long>()
-            pairs.forEach {
-                val rule = rules[it.key]
-                if (rule != null) {
-                    counts[rule.output] = (counts[rule.output] ?: 0) + it.value
-                    rule.expand().forEach { p -> newPairs[p] = (newPairs[p] ?: 0) + it.value }
-                } else {
-                    newPairs[it.key] = (newPairs[it.key] ?: 0) + it.value
-                }
-            }
-            pairs = newPairs
+            pairs = pairs.flatMap { expand(it.key, it.value) }
+                .groupingBy { it.first }
+                .fold(0L) { total, next -> total + next.second }
         }
 
+        val counts = pairs.map { it.key[1] to it.value }
+            .plusElement(Pair(input[0], 1L)) // Add the first letter to complete the count
+            .groupingBy { it.first }
+            .fold(0L) { total, next -> total + next.second }
         return counts.maxOf { it.value } - counts.minOf { it.value }
     }
 
+    private fun expand(pair: String, count: Long): List<Pair<String, Long>> =
+        (rules[pair]?.expand()?.map { it to count }) ?: listOf(pair to count)
+
     companion object {
         fun fromLines(lines: List<String>): Polymerization =
-            lines.map { PairInsertion.fromString(it) }.associateBy { Pair(it.input[0], it.input[1]) }
+            lines.map { PairInsertion.fromString(it) }
+                .associateBy { it.input }
                 .let { Polymerization(it) }
     }
 }
 
-class PairInsertion(val input: String, val output: Char) {
+class PairInsertion(val input: String, private val output: Char) {
 
-    fun expand(): List<Pair<Char, Char>> =
-        listOf(
-            Pair(input[0], output),
-            Pair(output, input[1])
-        )
+    fun expand(): List<String> = listOf("${input[0]}$output", "$output${input[1]}")
 
     companion object {
         fun fromString(line: String): PairInsertion =
