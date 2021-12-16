@@ -15,23 +15,20 @@ abstract class Packet(val version: Int) {
 
 class Literal(version: Int, private val number: Long): Packet(version) {
     override fun versionSum(): Int = version
-
     override fun evaluate(): Long = number
 
     companion object {
-        fun fromBinaryString(binary: String, version: Int, startIdx: Int): Pair<Literal, Int> {
-            var idx = startIdx
+        fun fromBinaryString(binary: BinaryString, version: Int): Literal {
             val sb = StringBuilder()
             while (true) {
-                val segment = binary.substring(idx, idx + 5)
+                val segment = binary.getNext(5)
                 sb.append(segment.substring(1))
-                idx += 5
                 if (segment[0] == '0') {
                     break
                 }
             }
 
-            return Pair(Literal(version, sb.toString().toLong(2)), idx)
+            return Literal(version, sb.toString().toLong(2))
         }
     }
 }
@@ -52,57 +49,42 @@ class Operator(version: Int, private val typeId: Int, private val subpackets: Li
         }
 
     companion object {
-        fun fromBinaryString(binary: String, version: Int, typeId: Int, startIdx: Int): Pair<Operator, Int> {
-            val lengthType = binary[startIdx]
-            return if (lengthType == '0') {
-                lengthType0(binary, version, typeId, startIdx + 1)
+        fun fromBinaryString(binary: BinaryString, version: Int, typeId: Int): Operator {
+            val lengthType = binary.getNext(1)
+            return if (lengthType == "0") {
+                Operator(version, typeId, lengthType0(binary))
             } else {
-                lengthType1(binary, version, typeId, startIdx + 1)
+                Operator(version, typeId, lengthType1(binary))
             }
         }
 
-        private fun lengthType0(binary: String, version: Int, typeId: Int, startIdx: Int): Pair<Operator, Int> {
-            val numBits = binary.substring(startIdx, startIdx + 15).toInt(2)
-            val endOfPacket = startIdx + 15 + numBits
+        private fun lengthType0(binary: BinaryString): List<Packet> {
+            val numBits = binary.getNextAsInt(15)
+            val packetData = BinaryString(binary.getNext(numBits))
             val subpackets = mutableListOf<Packet>()
-            var start = startIdx + 15
-            while (start < endOfPacket) {
-                val (packet, idx) = parseBinaryPacket(binary, start)
-                subpackets.add(packet)
-                start = idx
+            while (packetData.hasNext()) {
+                subpackets.add(parseBinaryPacket(packetData))
             }
 
-            return Pair(Operator(version, typeId, subpackets), start)
+            return subpackets
         }
 
-        private fun lengthType1(binary: String, version: Int, typeId: Int, startIdx: Int): Pair<Operator, Int> {
-            val numPackets = binary.substring(startIdx, startIdx + 11).toInt(2)
-            val subpackets = mutableListOf<Packet>()
-            var start = startIdx + 11
-            for (i in 1..numPackets) {
-                val (packet, idx) = parseBinaryPacket(binary, start)
-                subpackets.add(packet)
-                start = idx
-            }
-
-            return Pair(Operator(version, typeId,subpackets), start)
+        private fun lengthType1(binary: BinaryString): List<Packet> {
+            val numPackets = binary.getNextAsInt(11)
+            return (1..numPackets).map { parseBinaryPacket(binary) }
         }
     }
 }
 
-fun parsePacket(packet: String): Packet {
-    val binary = toBinaryString(packet)
-    val (result, _) = parseBinaryPacket(binary, 0)
-    return result
-}
+fun parsePacket(packet: String): Packet = parseBinaryPacket(toBinaryString(packet))
 
-fun parseBinaryPacket(binary: String, startIdx: Int): Pair<Packet, Int> {
-    val version = binary.substring(startIdx, startIdx + 3).toInt(2)
-    val typeId = binary.substring(startIdx + 3, startIdx + 6).toInt(2)
+fun parseBinaryPacket(binary: BinaryString): Packet {
+    val version = binary.getNextAsInt(3)
+    val typeId = binary.getNextAsInt(3)
     return if (typeId == 4) {
-        Literal.fromBinaryString(binary, version, startIdx + 6)
+        Literal.fromBinaryString(binary, version)
     } else {
-        Operator.fromBinaryString(binary, version, typeId, startIdx + 6)
+        Operator.fromBinaryString(binary, version, typeId)
     }
 }
 
@@ -110,12 +92,16 @@ class BinaryString(private val binary: String) {
     private var startIdx = 0
 
     fun getNext(n: Int): String {
-        val result = binary.substring(startIdx, n)
+        val result = binary.substring(startIdx, startIdx + n)
         startIdx += n
         return result
     }
+
+    fun getNextAsInt(n: Int): Int = getNext(n).toInt(2)
+
+    fun hasNext(): Boolean = startIdx < binary.lastIndex
 }
 
-fun toBinaryString(hex: String): String =
+fun toBinaryString(hex: String): BinaryString =
    hex.map { it.digitToInt(16).toString(2).padStart(4, '0') }
-       .joinToString("")
+       .joinToString("").let { BinaryString(it) }
