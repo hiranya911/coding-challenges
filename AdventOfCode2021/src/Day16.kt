@@ -61,12 +61,7 @@ class Operator(version: Int, private val typeId: Int, private val subpackets: Li
         private fun lengthType0(binary: BinaryString): List<Packet> {
             val numBits = binary.getNextAsInt(15)
             val packetData = BinaryString(binary.getNext(numBits))
-            val subpackets = mutableListOf<Packet>()
-            while (packetData.hasNext()) {
-                subpackets.add(parseBinaryPacket(packetData))
-            }
-
-            return subpackets
+            return generateSequence { if (packetData.hasNext()) parseBinaryPacket(packetData) else null }.toList()
         }
 
         private fun lengthType1(binary: BinaryString): List<Packet> {
