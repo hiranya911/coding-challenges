@@ -24,8 +24,8 @@ fun resolveScanners(scanners: List<Scanner>): Set<ResolvedScanner> {
     var unresolved = scanners.drop(1).flatMap { it.rotations() }
     while (unresolved.isNotEmpty()) {
         val (known, matched) = findOverlap(resolved, unresolved)
+        resolved.add(known.reconcile(unresolved.filter { it.idx == matched.idx }))
         unresolved = unresolved.filterNot { it.idx == matched.idx }
-        resolved.add(known.reconcile(matched))
     }
 
     return resolved
@@ -55,8 +55,8 @@ open class Scanner(val idx: Int, val beacons: List<Point>) {
     fun rotations(): List<Scanner> =
         (0..23).map { ori -> Scanner(idx, beacons.map { it.rotate(ori) })}
 
-    fun reconcile(other: Scanner): ResolvedScanner {
-        for (rotation in other.rotations()) {
+    fun reconcile(possibleMatches: List<Scanner>): ResolvedScanner {
+        for (rotation in possibleMatches) {
             for (point in rotation.beacons) {
                 val resolved = resolveScannerPosition(point, rotation)
                 if (resolved != null) {
