@@ -6,78 +6,61 @@ import kotlin.math.min
 
 fun main() {
     val scanners = parseReport("inputs/d19_large.txt")
-    println("======")
-
-    val points = mutableSetOf<Point>()
-    points.addAll(scanners[0].beacons)
-
-    val done = mutableSetOf<Scanner>()
-    done.add(scanners[0])
-
-    val roots = mutableSetOf<Point>()
-
-    var unfixed = scanners.drop(1).toMutableList()
-        .flatMap { scn -> (0..23).map{ ori -> Scanner(scn.idx, scn.beacons.map { it.rotate(ori) }) } }
-    while (unfixed.isNotEmpty()) {
-        val (known, matched) = findOverlap(done, unfixed)
-        unfixed = unfixed.filter { it.idx != matched.idx }
-
-        val resolved = known.reconcile(matched)
-        //println(resolved.scanner.beacons)
-        done.add(resolved.scanner)
-        roots.add(resolved.pos)
-        points.addAll(resolved.scanner.beacons)
-    }
-
+    val resolved = resolveScanners(scanners)
+    val points = resolved.map { it.beacons.toSet() }.reduce { acc, next -> acc.union(next) }
     println("Total points = ${points.size}")
 
-    val distances = mutableListOf<Int>()
-    for (a in roots) {
-        for (b in roots) {
-            distances.add(a.manhattanDistance(b))
-        }
+    val maxDistance = resolved.map { it.root }.let { roots ->
+        roots.flatMap { a -> roots.map { b -> a.manhattanDistance(b) } }.maxOf { it }
     }
-
-    println("Max distance = ${distances.maxOf { it }}")
+    println("Max distance = $maxDistance")
 }
 
-fun findOverlap(matched: Iterable<Scanner>, unfixed: List<Scanner>): Pair<Scanner, Scanner> {
-    for (s1 in matched) {
-        for (s2 in unfixed) {
-            if (s1.hasOverlap(s2)) {
-                return Pair(s1, s2)
-            }
-        }
+fun resolveScanners(scanners: List<Scanner>): Set<ResolvedScanner> {
+    val resolved = mutableSetOf<ResolvedScanner>().apply {
+        add(ResolvedScanner(0, scanners[0].beacons, Point(0, 0, 0)))
     }
 
-    throw Exception("oops")
+    var unresolved = scanners.drop(1).flatMap { it.rotations() }
+    while (unresolved.isNotEmpty()) {
+        val (known, matched) = findOverlap(resolved, unresolved)
+        unresolved = unresolved.filterNot { it.idx == matched.idx }
+        resolved.add(known.reconcile(matched))
+    }
+
+    return resolved
+}
+
+fun findOverlap(resolved: Iterable<Scanner>, unresolved: Iterable<Scanner>): Pair<Scanner, Scanner> {
+    for (s1 in resolved) {
+        val s2 = unresolved.firstOrNull { s1.hasOverlap(it) }
+        if (s2 != null) return Pair(s1, s2)
+    }
+
+    throw Exception("no overlapping regions")
 }
 
 typealias Point = Triple<Int, Int, Int>
 
-class Scanner(val idx: Int, val beacons: List<Point>) {
+open class Scanner(val idx: Int, val beacons: List<Point>) {
 
-    val distances = pairwiseDistances()
+    private val distances = pairwiseDistances()
 
     fun hasOverlap(other: Scanner): Boolean {
-        val result = distances.intersect(other.distances).sumOf {
-                x -> min(distances.count {it == x}, other.distances.count {it == x})
-        }
-        return result >= 66
+        val result = distances.intersect(other.distances)
+            .sumOf { x -> min(distances.count {it == x}, other.distances.count {it == x}) }
+        return result >= 66 // 12 common points will have at least this many pairwise connections.
     }
 
     fun rotations(): List<Scanner> =
         (0..23).map { ori -> Scanner(idx, beacons.map { it.rotate(ori) })}
 
-    fun reconcile(ogother: Scanner): ResolvedScanner {
-        //println("Reconcile ${idx} with ${ogother.idx}")
-        for (other in ogother.rotations()) {
-            // println(other.beacons[0])
-            for (point in other.beacons) {
-                val root = findScannerPosition(point, other)
-                if (root != null) {
-                    // println("Root of ${other.idx} is $root")
-                    return ResolvedScanner(Scanner(other.idx, other.beacons.map { root.plus(it) }), root)
+    fun reconcile(other: Scanner): ResolvedScanner {
+        for (rotation in other.rotations()) {
+            for (point in rotation.beacons) {
+                val resolved = resolveScannerPosition(point, rotation)
+                if (resolved != null) {
+                    return resolved
                 }
             }
         }
@@ -85,36 +68,27 @@ class Scanner(val idx: Int, val beacons: List<Point>) {
         throw Exception("reconcile failed")
     }
 
-    private fun findScannerPosition(point: Point, other: Scanner): Point? {
-        // println("$point: $beacons")
+    private fun resolveScannerPosition(point: Point, other: Scanner): ResolvedScanner? {
         for (target in beacons) {
             val pos = target.subtract(point)
             val projections = other.beacons.map { pos.plus(it) }
             if (projections.intersect(beacons).count() >= 12) {
-                return pos
+                return ResolvedScanner(other.idx, projections, pos)
             }
         }
 
         return null
     }
 
-    private fun pairwiseDistances(): List<Point> {
-        val distances = mutableListOf<Point>()
-        for (i in 0 until beacons.lastIndex) {
-            for (j in i+1..beacons.lastIndex) {
-                distances.add(relativeDistance(beacons[i], beacons[j]))
-            }
-        }
-
-        return distances
-    }
-
-    private fun relativeDistance(a: Point, b: Point): Point =
-        Point(abs(a.first - b.first), abs(a.second - b.second), abs(a.third - b.third))
+    private fun pairwiseDistances(): List<Point> =
+        (0 until beacons.lastIndex)
+            .flatMap { i -> (i+1..beacons.lastIndex).map { j -> beacons[i].relativeDistance(beacons[j]) } }
 }
 
-fun Point.rotate(orientation: Int): Point {
-    return when (orientation) {
+class ResolvedScanner(idx: Int, beacons: List<Point>, val root: Point): Scanner(idx, beacons)
+
+fun Point.rotate(orientation: Int): Point =
+    when (orientation) {
         0 -> this
         1 -> Point(second, third, first)
         2 -> Point(-second, first, third)
@@ -141,13 +115,15 @@ fun Point.rotate(orientation: Int): Point {
         23 -> Point(-first, third, second)
         else -> throw Exception("unknown orientation: $orientation")
     }
-}
 
 fun Point.plus(other: Point): Point =
     Point(first + other.first, second + other.second, third + other.third)
 
 fun Point.subtract(other: Point): Point =
     Point(first - other.first, second - other.second, third - other.third)
+
+fun Point.relativeDistance(other: Point): Point =
+    Point(abs(first - other.first), abs(second - other.second), abs(third - other.third))
 
 fun Point.manhattanDistance(other: Point): Int =
     abs(first - other.first) + abs(second - other.second) + abs(third - other.third)
@@ -176,5 +152,3 @@ fun parseReport(fileName: String): List<Scanner> {
 
     return scanners
 }
-
-class ResolvedScanner(val scanner: Scanner, val pos: Point)
