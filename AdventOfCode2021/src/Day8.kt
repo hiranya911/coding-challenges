@@ -1,5 +1,6 @@
 package day8
 
+import utils.pow
 import utils.readFileAsLines
 import kotlin.math.pow
 
@@ -53,6 +54,3 @@ class Display(private val inputs: List<String>, private val outputs: List<String
 
 fun <T> MutableList<T>.findAndRemove(pred: (s: T) -> Boolean): T =
     first { pred(it) }.also { remove(it) }
-
-fun Int.pow(n: Int): Int =
-    this.toDouble().pow(n).toInt()
