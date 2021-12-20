@@ -31,31 +31,19 @@ class Image(
     fun activePixels(): Int = pixels.values.sumOf { it }
 
     fun enhance(): Image {
-        val result = pixels.keys.associateWith { getEnhancedPixel(it) }.toMutableMap()
-        enhanceHorizontalEdges(result)
-        enhanceVerticalEdges(result)
+        val result = pixels.keys.associateWith { getEnhancedPixel(it) }
+            .plus(enhanceHorizontalEdges())
+            .plus(enhanceVerticalEdges())
         return Image(result, enhancer, nextDefaultPixel(), Pair(minX-1, maxX+1), Pair(minY-1, maxY+1))
     }
 
-    private fun enhanceHorizontalEdges(result: MutableMap<Pair<Int, Int>, Int>) {
-        for (x in minX-1..maxX+1) {
-            val up = Pair(x, minY-1)
-            result[up] = getEnhancedPixel(up)
+    private fun enhanceHorizontalEdges(): Map<Pair<Int, Int>, Int> =
+        (minX-1..maxX+1).flatMap { x -> listOf(Pair(x, minY-1), Pair(x, maxY+1)) }
+            .associateWith { getEnhancedPixel(it) }
 
-            val down = Pair(x, maxY+1)
-            result[down] = getEnhancedPixel(down)
-        }
-    }
-
-    private fun enhanceVerticalEdges(result: MutableMap<Pair<Int, Int>, Int>) {
-        for (y in minY..maxY) {
-            val left = Pair(minX-1, y)
-            result[left] = getEnhancedPixel(left)
-
-            val right = Pair(maxX+1, y)
-            result[right] = getEnhancedPixel(right)
-        }
-    }
+    private fun enhanceVerticalEdges(): Map<Pair<Int, Int>, Int> =
+        (minY..maxY).flatMap { y -> listOf(Pair(minX-1, y), Pair(maxX+1, y)) }
+            .associateWith { getEnhancedPixel(it) }
 
     private fun nextDefaultPixel(): Int =
         (0 until 9).sumOf { defaultPixel * 2.pow(it) }.let { enhancer[it] }
