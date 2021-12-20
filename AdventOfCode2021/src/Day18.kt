@@ -13,7 +13,7 @@ fun main() {
     val maxMagnitude = numbers
         .flatMap { n -> numbers.minus(n).map { n.copy().plus(it.copy()).magnitude() } }
         .maxOf { it }
-    println("Largest magnitude = ${maxMagnitude}")
+    println("Largest magnitude = $maxMagnitude")
 }
 
 sealed class SnailNumber(var parent: PairNumber?) {
