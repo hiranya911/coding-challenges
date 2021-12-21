@@ -11,7 +11,8 @@ fun main() {
 
 fun playWithDeterministicDice(init: State): Long {
     var game = init
-    val dice = DeterministicDice()
+    var num = 0
+    val dice = generateSequence { ((num++) % 100) + 1 }.iterator()
     while (!game.isDone()) {
         game = game.takeTurn((1..3).sumOf { dice.next() })
     }
@@ -49,7 +50,6 @@ class State(
     private val p1Turn: Boolean = true,
     val universes: Long = 1,
 ) {
-
     fun takeTurn(sum: Int, unis: Int = 1): State =
         if (p1Turn) {
             val pos = (player1 + sum) % 10
@@ -67,20 +67,6 @@ class State(
     companion object {
         fun withStartingPositions(player1: Int, player2: Int): State =
             State(player1-1, player2-1)
-    }
-}
-
-class DeterministicDice(private val sides: Int = 100) {
-    private var start = 1
-
-    fun next(): Int {
-        val result = start
-        start++
-        if (start > sides) {
-            start = 1
-        }
-
-        return result
     }
 }
 
