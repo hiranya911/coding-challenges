@@ -19,7 +19,7 @@ fun diff(s1: String, s2: String): Int =
 
 fun findSimilar(words: List<String>): String {
     for (i in 0 until words.lastIndex) {
-        for (j in i..words.lastIndex) {
+        for (j in i+1..words.lastIndex) {
             if (diff(words[i], words[j]) == 1) {
                 return words[i].zip(words[j]).filter { it.first == it.second }.map{ it.first }.joinToString("")
             }
