@@ -34,41 +34,28 @@ class Cuboid(private val x: Pair<Int, Int>, private val y: Pair<Int, Int>, priva
                 (y.first <= other.y.first && y.second >= other.y.second) &&
                 (z.first <= other.z.first && z.second >= other.z.second)
 
-    fun getIntersection(other: Cuboid): Cuboid? {
+    fun intersects(other: Cuboid): Boolean {
         val xmin = max(x.first, other.x.first)
         val xmax = min(x.second, other.x.second)
         val ymin = max(y.first, other.y.first)
         val ymax = min(y.second, other.y.second)
         val zmin = max(z.first, other.z.first)
         val zmax = min(z.second, other.z.second)
-        if (xmin >= xmax || ymin >= ymax || zmin >= zmax) {
-            return null
-        }
-
-        return Cuboid(Pair(xmin, xmax), Pair(ymin, ymax), Pair(zmin, zmax))
+        return xmin < xmax && ymin < ymax && zmin < zmax
     }
 
     fun overlap(other: Cuboid): List<Cuboid> {
-        getIntersection(other) ?: return listOf()
+        if (!intersects(other)) return listOf()
         val xpoints = sortedCoordinates(x, other.x)
         val ypoints = sortedCoordinates(y, other.y)
         val zpoints = sortedCoordinates(z, other.z)
-
         val result = mutableListOf<Cuboid>()
-        for (i in 0 until 3) {
-            val xmin = xpoints[i]
-            val xmax = xpoints[i+1]
-            for (j in 0 until 3) {
-                val ymin = ypoints[j]
-                val ymax = ypoints[j+1]
-                for (k in 0 until 3) {
-                    val zmin = zpoints[k]
-                    val zmax = zpoints[k+1]
-                    if (xmin < xmax && ymin < ymax && zmin < zmax) {
-                        val cuboid = Cuboid(Pair(xmin, xmax), Pair(ymin, ymax), Pair(zmin, zmax))
-                        if (this.totallyContains(cuboid) || other.totallyContains(cuboid)) {
-                            result.add(cuboid)
-                        }
+        xpoints.pairs().forEach { xpair ->
+            ypoints.pairs().forEach { ypair ->
+                zpoints.pairs().forEach { zpair ->
+                    val cuboid = Cuboid(xpair, ypair, zpair)
+                    if (this.totallyContains(cuboid) || other.totallyContains(cuboid)) {
+                        result.add(cuboid)
                     }
                 }
             }
@@ -106,9 +93,10 @@ class ReactorCore {
             if (entry.value == status && entry.key.totallyContains(cuboid)) {
                 return
             }
+
             if (cuboid.totallyContains(entry.key)) {
                 toRemove.add(entry.key)
-            } else if (entry.key.getIntersection(cuboid) != null) {
+            } else if (entry.key.intersects(cuboid)) {
                 toRemove.add(entry.key)
                 for (sub in entry.key.overlap(cuboid)) {
                     if (!cuboid.totallyContains(sub)) {
@@ -123,6 +111,8 @@ class ReactorCore {
         map[cuboid] = status
     }
 
-    fun activeCubes(): Long =
-        map.filter { it.value }.map { it.key.size() }.sum()
+    fun activeCubes(): Long = map.filter { it.value }.map { it.key.size() }.sum()
 }
+
+fun List<Int>.pairs(): List<Pair<Int, Int>> =
+    (0 until lastIndex).map { Pair(this[it], this[it+1]) }.filter { it.first < it.second }
