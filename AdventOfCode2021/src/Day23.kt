@@ -4,67 +4,30 @@ import java.util.*
 
 fun main() {
     val testPlacement = mapOf(
-        100 to "A",
-        101 to "D",
-        102 to "D",
-        103 to "B",
-
-        200 to "D",
-        201 to "B",
-        202 to "C",
-        203 to "C",
-
-        300 to "C",
-        301 to "A",
-        302 to "B",
-        303 to "B",
-
-        400 to "A",
-        401 to "C",
-        402 to "A",
-        403 to "D",
+        100 to "A", 101 to "D", 102 to "D", 103 to "B",
+        200 to "D", 201 to "B", 202 to "C", 203 to "C",
+        300 to "C", 301 to "A", 302 to "B", 303 to "B",
+        400 to "A", 401 to "C", 402 to "A", 403 to "D",
     )
-    val realPlacement = mapOf(
-        100 to "B",
-        101 to "D",
-        102 to "D",
-        103 to "C",
-
-        200 to "A",
-        201 to "B",
-        202 to "C",
-        203 to "A",
-
-        300 to "D",
-        301 to "A",
-        302 to "B",
-        303 to "B",
-
-        400 to "C",
-        401 to "C",
-        402 to "A",
-        403 to "D",
+    val realPlacement1 = mapOf(
+        100 to "B", 101 to "C",
+        200 to "A", 201 to "A",
+        300 to "D", 301 to "B",
+        400 to "C", 401 to "D",
     )
-    val goal = mapOf(
-        100 to "A",
-        101 to "A",
-        102 to "A",
-        103 to "A",
-        200 to "B",
-        201 to "B",
-        202 to "B",
-        203 to "B",
-        300 to "C",
-        301 to "C",
-        302 to "C",
-        303 to "C",
-        400 to "D",
-        401 to "D",
-        402 to "D",
-        403 to "D",
+    val realPlacement2 = mapOf(
+        100 to "B", 101 to "D", 102 to "D", 103 to "C",
+        200 to "A", 201 to "B", 202 to "C", 203 to "A",
+        300 to "D", 301 to "A", 302 to "B", 303 to "B",
+        400 to "C", 401 to "C", 402 to "A", 403 to "D",
     )
-    val burrow = Burrow(realPlacement, goal)
-    println(relocate(burrow))
+
+    val burrow1 = Burrow(realPlacement1,  BasicLocationSetup())
+    println("\nLeast energy = ${relocate(burrow1)}")
+    println()
+
+    val burrow2 = Burrow(realPlacement2,  ExtendedLocationSetup())
+    println("\nLeast energy (extended) = ${relocate(burrow2)}")
 }
 
 fun relocate(init: Burrow): Long {
@@ -73,14 +36,12 @@ fun relocate(init: Burrow): Long {
     var iter = 0
     while (frontier.isNotEmpty()) {
         val curr = frontier.remove()
-        // readLine()
-
         iter++
-        if (iter % 1000 == 0) {
-            println("${curr.placement}: ${curr.energy}")
+        if (iter % 10000 == 0) {
+            println("$iter: ${curr.placement} (${curr.energy})")
         }
+
         if (curr.isGoal()) {
-            println("GOAL ${curr.energy}")
             return curr.energy
         } else {
             curr.successors().forEach {
@@ -95,30 +56,31 @@ fun relocate(init: Burrow): Long {
     return -1
 }
 
+interface LocationSetup {
+    val goal: Map<Int, String>
+    fun neighbors(curr: Int): List<Int>
+    fun targets(name: String): List<Int>
+}
+
 class Burrow(
     val placement: Map<Int, String>,
-    val goal: Map<Int, String>,
+    private val setup: LocationSetup,
     val energy: Long = 0,
-    val history: Burrow? = null
 ) {
 
-    fun isGoal(): Boolean {
-        val snap = placement.mapValues { it.value.substring(0, 1) }
-        return snap == goal
-    }
+    fun isGoal(): Boolean =
+        placement.mapValues { it.value.substring(0, 1) } == setup.goal
 
     fun successors(): List<Burrow> {
-        val amphipods = placement.map { it.key to it.value }
         val result = mutableListOf<Burrow>()
-
-        amphipods.forEach { (curr, name) ->
+        placement.forEach { (curr, name) ->
             successorsFor(name, curr).filterNot { dest -> dest in placement }.forEach { dest ->
                 val (hasPath, moves) = hasClearPath(curr, dest)
                 if (hasPath) {
                     val newPlacement = placement.toMutableMap()
                     newPlacement.remove(curr)
                     newPlacement[dest] = name
-                    result.add(Burrow(newPlacement, goal, energy + energy(name, moves), this))
+                    result.add(Burrow(newPlacement, setup, energy + energy(name, moves)))
                 }
             }
         }
@@ -133,25 +95,29 @@ class Burrow(
         }
 
         // In one of the rooms
-        val rooms = getTarget(name)
-
-        // In the wrong rooms
+        val rooms = setup.targets(name)
         if (curr !in rooms) {
+            // In the wrong rooms
             return listOf(0, 1, 3, 5, 7, 9, 10).plus(getRoomTargets(name))
         }
 
-        if (stackedInOrder(name, curr, rooms)) {
-            return listOf()
+        // We are blocking another type of creature. Have to move out and unblock.
+        if (isBlockingOther(name, curr, rooms)) {
+            return listOf(0, 1, 3, 5, 7, 9, 10)
         }
 
-        return listOf(0, 1, 3, 5, 7, 9, 10).plus(getRoomTargets(name))
+        // We are not blocking anyone. Just move as inwards as possible in the room.
+        return (curr-1 downTo rooms[0]).toList()
     }
+
+    private fun isBlockingOther(name: String, curr: Int, rooms: List<Int>): Boolean =
+        (curr-1 downTo rooms[0]).any { it in placement && placement[it]!! != name }
 
     private fun stackedInOrder(name: String, curr: Int, rooms: List<Int>): Boolean =
         (curr downTo  rooms[0]).all { it in placement && placement[it]!! == name }
 
     private fun getRoomTargets(name: String): List<Int> {
-        val targets = getTarget(name)
+        val targets = setup.targets(name)
         val otherOccupants = targets.any { it in placement && placement[it]!! != name }
         if (otherOccupants) {
             return listOf()
@@ -160,7 +126,7 @@ class Burrow(
         return targets
     }
 
-    fun hasClearPath(from: Int, to: Int): Pair<Boolean, Int> {
+    private fun hasClearPath(from: Int, to: Int): Pair<Boolean, Int> {
         val frontier = Stack<Pair<Int, Int>>()
         val explored = mutableSetOf(from)
         frontier.push(Pair(from, 0))
@@ -170,7 +136,7 @@ class Burrow(
                 return Pair(true, curr.second)
             }
 
-            neighbors(curr.first).filterNot { it in placement }.forEach {
+            setup.neighbors(curr.first).filterNot { it in placement }.forEach {
                 if (it !in explored) {
                     explored.add(it)
                     frontier.push(Pair(it, curr.second + 1))
@@ -181,17 +147,65 @@ class Burrow(
         return Pair(false, -1)
     }
 
-    private fun getTarget(name: String): List<Int> {
+    private fun energy(name: String, moves: Int): Long {
         return when (name) {
-            "A" -> listOf(100, 101, 102, 103)
-            "B" -> listOf(200, 201, 202, 203)
-            "C" -> listOf(300, 301, 302, 303)
-            "D" -> listOf(400, 401, 402, 403)
+            "A" -> moves * 1L
+            "B" -> moves * 10L
+            "C" -> moves * 100L
+            "D" -> moves * 1000L
+            else -> throw Exception("invalid name $name")
+        }
+    }
+}
+
+val compareByCost: Comparator<Burrow> = compareBy { it.energy }
+
+class BasicLocationSetup: LocationSetup {
+    override fun neighbors(curr: Int): List<Int> {
+        return when (curr) {
+            0 -> listOf(1)
+            1 -> listOf(0, 2)
+            2 -> listOf(1, 3, 101)
+            3 -> listOf(2, 4)
+            4 -> listOf(3, 5, 201)
+            5 -> listOf(4, 6)
+            6 -> listOf(5, 7, 301)
+            7 -> listOf(6, 8)
+            8 -> listOf(7, 9, 401)
+            9 -> listOf(8, 10)
+            10 -> listOf(9)
+            101 -> listOf(2, 100)
+            100 -> listOf(101)
+            201 -> listOf(4, 200)
+            200 -> listOf(201)
+            301 -> listOf(6, 300)
+            300 -> listOf(301)
+            401 -> listOf(8, 400)
+            400 -> listOf(401)
+            else -> throw Exception("invalid location $curr")
+        }
+    }
+
+    override fun targets(name: String): List<Int> {
+        return when (name) {
+            "A" -> listOf(100, 101)
+            "B" -> listOf(200, 201)
+            "C" -> listOf(300, 301)
+            "D" -> listOf(400, 401)
             else -> throw Exception("invalid name $name")
         }
     }
 
-    private fun neighbors(curr: Int): List<Int> {
+    override val goal = mapOf(
+        100 to "A", 101 to "A",
+        200 to "B", 201 to "B",
+        300 to "C", 301 to "C",
+        400 to "D", 401 to "D",
+    )
+}
+
+class ExtendedLocationSetup: LocationSetup {
+    override fun neighbors(curr: Int): List<Int> {
         return when (curr) {
             0 -> listOf(1)
             1 -> listOf(0, 2)
@@ -224,15 +238,20 @@ class Burrow(
         }
     }
 
-    private fun energy(name: String, moves: Int): Long {
+    override fun targets(name: String): List<Int> {
         return when (name) {
-            "A" -> moves * 1L
-            "B" -> moves * 10L
-            "C" -> moves * 100L
-            "D" -> moves * 1000L
+            "A" -> listOf(100, 101, 102, 103)
+            "B" -> listOf(200, 201, 202, 203)
+            "C" -> listOf(300, 301, 302, 303)
+            "D" -> listOf(400, 401, 402, 403)
             else -> throw Exception("invalid name $name")
         }
     }
-}
 
-val compareByCost: Comparator<Burrow> = compareBy { it.energy }
+    override val goal = mapOf(
+        100 to "A", 101 to "A", 102 to "A", 103 to "A",
+        200 to "B", 201 to "B", 202 to "B", 203 to "B",
+        300 to "C", 301 to "C", 302 to "C", 303 to "C",
+        400 to "D", 401 to "D", 402 to "D", 403 to "D",
+    )
+}
