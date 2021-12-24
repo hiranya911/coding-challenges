@@ -3,12 +3,6 @@ package day23
 import java.util.*
 
 fun main() {
-    val testPlacement = mapOf(
-        100 to "A", 101 to "D", 102 to "D", 103 to "B",
-        200 to "D", 201 to "B", 202 to "C", 203 to "C",
-        300 to "C", 301 to "A", 302 to "B", 303 to "B",
-        400 to "A", 401 to "C", 402 to "A", 403 to "D",
-    )
     val realPlacement1 = mapOf(
         100 to "B", 101 to "C",
         200 to "A", 201 to "A",
@@ -22,11 +16,11 @@ fun main() {
         400 to "C", 401 to "C", 402 to "A", 403 to "D",
     )
 
-    val burrow1 = Burrow(realPlacement1,  BasicLocationSetup())
+    val burrow1 = Burrow(realPlacement1, BasicLocationSetup())
     println("\nLeast energy = ${relocate(burrow1)}")
     println()
 
-    val burrow2 = Burrow(realPlacement2,  ExtendedLocationSetup())
+    val burrow2 = Burrow(realPlacement2, ExtendedLocationSetup())
     println("\nLeast energy (extended) = ${relocate(burrow2)}")
 }
 
@@ -113,9 +107,6 @@ class Burrow(
     private fun isBlockingOther(name: String, curr: Int, rooms: List<Int>): Boolean =
         (curr-1 downTo rooms[0]).any { it in placement && placement[it]!! != name }
 
-    private fun stackedInOrder(name: String, curr: Int, rooms: List<Int>): Boolean =
-        (curr downTo  rooms[0]).all { it in placement && placement[it]!! == name }
-
     private fun getRoomTargets(name: String): List<Int> {
         val targets = setup.targets(name)
         val otherOccupants = targets.any { it in placement && placement[it]!! != name }
@@ -127,9 +118,8 @@ class Burrow(
     }
 
     private fun hasClearPath(from: Int, to: Int): Pair<Boolean, Int> {
-        val frontier = Stack<Pair<Int, Int>>()
+        val frontier = Stack<Pair<Int, Int>>().apply { push(Pair(from, 0)) }
         val explored = mutableSetOf(from)
-        frontier.push(Pair(from, 0))
         while (frontier.isNotEmpty()) {
             val curr = frontier.pop()
             if (curr.first == to) {
