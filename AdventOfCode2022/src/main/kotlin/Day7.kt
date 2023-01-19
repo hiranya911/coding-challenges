@@ -5,32 +5,33 @@ import java.util.Stack
 
 fun main() {
     val fs = buildFileSystem(readFileAsLines("inputs/d7_large.txt"))
-    println("Small dirs: ${getTotalDirectorySize(fs)}")
-    println("To delete: ${findSmallestDelete(fs)}")
+    val dirs = getDirectorySizes(fs)
+    println("Small dirs: ${dirs.filter { it <= 100000 }.sum()}")
+
+    val currentFree = 70000000 - dirs.max()
+    val toFree = 30000000 - currentFree
+    println("To delete: ${dirs.filter { it >= toFree }.min()}")
 }
 
-fun getTotalDirectorySize(fs: FileSystem, limit: Int = 100000): Int {
-    var smallDirs = 0
-    fs.walkTree {
-        if (it is Node.Dir && it.size() <= limit) {
-            smallDirs += it.size()
+fun getDirectorySizes(fs: FileSystem): List<Int> {
+    val dirs = fs.dirs()
+    val cache = mutableMapOf<Node.Dir, Int>()
+
+    fun getOrComputeSize(d: Node.Dir): Int {
+        return cache[d] ?: run {
+            val computed = d.children.sumOf {
+                when (it) {
+                    is Node.File -> it.size
+                    is Node.Dir -> getOrComputeSize(it)
+                }
+            }
+            cache[d] = computed
+            return computed
         }
     }
 
-    return smallDirs
-}
-
-fun findSmallestDelete(fs: FileSystem, total: Int = 70000000, requiredFree: Int = 30000000): Int {
-    val currentFree = total - fs.usedSpace()
-    val toFree = requiredFree - currentFree
-    val candidates = mutableSetOf<Node>()
-    fs.walkTree {
-        if (it is Node.Dir && it.size() >= toFree) {
-            candidates.add(it)
-        }
-    }
-
-    return candidates.minOf { it.size() }
+    dirs.forEach { getOrComputeSize(it) }
+    return cache.values.toList()
 }
 
 fun buildFileSystem(lines: List<String>): FileSystem {
@@ -54,14 +55,8 @@ fun buildFileSystem(lines: List<String>): FileSystem {
 }
 
 sealed class Node(open val name: String) {
-    abstract fun size(): Int
-
-    data class Dir(override val name: String, val children: MutableList<Node>) : Node(name) {
-        override fun size(): Int = children.sumOf { it.size() }
-    }
-    data class File(override val name: String, private val bytes : Int) : Node(name) {
-        override fun size(): Int = bytes
-    }
+    data class Dir(override val name: String, val children: MutableList<Node>) : Node(name)
+    data class File(override val name: String, val size : Int) : Node(name)
 }
 
 class FileSystem {
@@ -91,7 +86,18 @@ class FileSystem {
         current.children.add(Node.File(name, size))
     }
 
-    fun walkTree(onVisit: (node: Node) -> Unit) {
+    fun dirs(): List<Node.Dir> {
+        val result = mutableListOf<Node.Dir>()
+        walkTree {
+            if (it is Node.Dir) {
+                result.add(it)
+            }
+        }
+
+        return result
+    }
+
+    private fun walkTree(onVisit: (node: Node) -> Unit) {
         val frontier = Stack<Node>()
         frontier.push(root)
         while (frontier.isNotEmpty()) {
@@ -102,6 +108,4 @@ class FileSystem {
             }
         }
     }
-
-    fun usedSpace(): Int = root.size()
 }
