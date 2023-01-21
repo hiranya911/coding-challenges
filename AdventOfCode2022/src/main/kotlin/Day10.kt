@@ -4,34 +4,35 @@ import utils.readFileAsLines
 
 fun main() {
     val program = readFileAsLines("inputs/d10_large.txt").map { Instruction.fromString(it) }
-    val cpu = CPU().apply { program.forEach { execute(it) } }
+    val cpu = CPU(program).apply { run() }
     println("Signal strength: ${cpu.signalStrength()}")
     cpu.draw()
 }
 
-class CPU {
-    private var x: Int = 1
+class Register(private var value: Int) {
+    fun get(): Int = value
+    fun inc(delta: Int) {
+        value += delta
+    }
+}
 
-    /**
-     * Number of cycles completed.
-     */
-    private var cycles: Int = 0
+class CPU(private val instructions: List<Instruction>) {
+    private val x = Register(1)
+    private var pc: Int = 0
     private var nextSnapshotAt: Int = 20
-    private val signalStrengths = mutableListOf<Int>()
-    private val drawnPixels = mutableListOf<Int>()
+    private val signalSnapshots: MutableList<Int> = mutableListOf()
+    private val drawnPixels: MutableList<Int> = mutableListOf()
 
-    fun signalStrength(): Int = signalStrengths.sum()
-
-    fun execute(inst: Instruction) {
-        when (inst) {
-            is Instruction.Noop -> tick()
-            is Instruction.Add -> {
-                tick()
-                tick()
-                x += inst.arg
-            }
+    fun run() {
+        var cycles = 0
+        while (true) {
+            val halt = runCycle(cycles + 1)
+            if (halt) break
+            cycles += 1
         }
     }
+
+    fun signalStrength(): Int = signalSnapshots.sum()
 
     fun draw() {
         for (i in 1 .. 240) {
@@ -45,25 +46,48 @@ class CPU {
         }
     }
 
-    private fun tick() {
-        val crtPosition = cycles % 40
-        if (crtPosition in x-1..x+1) {
-            drawnPixels.add(cycles)
-        }
-
-        val current = cycles + 1
-        if (current == nextSnapshotAt) {
-            signalStrengths.add(x * current)
+    private fun runCycle(num: Int): Boolean {
+        val current = instructions.getOrNull(pc) ?: return true
+        if (num == nextSnapshotAt) {
+            signalSnapshots.add(x.get() * num)
             nextSnapshotAt += 40
         }
 
-        cycles++
+        val crtPosition = (num - 1) % 40
+        val sprite = x.get()
+        if (crtPosition in sprite - 1..sprite + 1) {
+            drawnPixels.add(num - 1)
+        }
+
+        if (current.execute(x) == InstructionStatus.Complete) {
+            pc += 1
+        }
+        return false
     }
 }
 
 sealed class Instruction() {
-    data class Add(val arg: Int): Instruction()
-    object Noop : Instruction()
+    abstract fun execute(x: Register): InstructionStatus
+
+    data class Add(val arg: Int): Instruction() {
+        private var cycles: Int = 0
+
+        override fun execute(x: Register): InstructionStatus {
+            cycles++
+            return when (cycles) {
+                1 -> InstructionStatus.Incomplete
+                2 -> {
+                    x.inc(arg)
+                    InstructionStatus.Complete
+                }
+                else  -> throw IllegalArgumentException("Too many cycles on Add")
+            }
+        }
+    }
+
+    object Noop : Instruction() {
+        override fun execute(x: Register): InstructionStatus = InstructionStatus.Complete
+    }
 
     companion object {
         fun fromString(str: String): Instruction {
@@ -77,3 +101,5 @@ sealed class Instruction() {
         }
     }
 }
+
+enum class InstructionStatus { Incomplete, Complete }
