@@ -6,9 +6,10 @@ import java.util.Queue
 
 fun main() {
     val locations = parseGridMap("inputs/d12_large.txt")
+    val explorer = MapExplorer(locations)
     val start = locations.first { it.id == 'S' }
-    println("Shortest path from start: ${shortestPathFrom(locations, start)}")
-    println("Shortest path: ${shortestPath(locations)}")
+    println("Shortest path from start: ${explorer.shortestPathFrom(start)}")
+    println("Shortest path: ${explorer.shortestPath()}")
 }
 
 fun parseGridMap(path: String): List<Location> {
@@ -24,22 +25,40 @@ fun parseGridMap(path: String): List<Location> {
     return locations.toList()
 }
 
-fun shortestPath(locations: List<Location>): Int {
-    val startingPoints = locations.filter { it.elevation == 0 }
-    return startingPoints.minOf { shortestPathFrom(locations, it) }
-}
+class MapExplorer(private val locations: List<Location>) {
 
-fun shortestPathFrom(locations: List<Location>, start: Location): Int {
-    val byPosition = locations.associateBy { Pair(it.x, it.y) }
-    val solution = bfs(byPosition, start)
-    return solution?.distance() ?: Int.MAX_VALUE
-}
+    private val byPosition: Map<Pair<Int, Int>, Location> = locations.associateBy { Pair(it.x, it.y) }
 
-fun bfs(byPosition: Map<Pair<Int, Int>, Location>, start: Location): Node? {
-    val frontier: Queue<Node> = LinkedList<Node>().apply { add(Node(start, parent = null)) }
-    val explored = mutableSetOf(start)
+    fun shortestPathFrom(start: Location): Int {
+        return bfs(start)?.distance() ?: Int.MAX_VALUE
+    }
 
-    fun successors(node: Node): List<Node> {
+    fun shortestPath(): Int {
+        val startingPoints = locations.filter { it.elevation == 0 }
+        return startingPoints.minOf { shortestPathFrom(it) }
+    }
+
+    private fun bfs(start: Location): Node? {
+        val frontier: Queue<Node> = LinkedList<Node>().apply { add(Node(start, parent = null)) }
+        val explored = mutableSetOf(start)
+        while (frontier.isNotEmpty()) {
+            val current = frontier.remove()
+            if (current.location.id == 'E') {
+                return current
+            }
+
+            successors(current).forEach {
+                if (it.location !in explored) {
+                    explored.add(it.location)
+                    frontier.add(it)
+                }
+            }
+        }
+
+        return null
+    }
+
+    private fun successors(node: Node): List<Node> {
         val x = node.location.x
         val y = node.location.y
         return listOf(
@@ -53,22 +72,6 @@ fun bfs(byPosition: Map<Pair<Int, Int>, Location>, start: Location): Node? {
             Node(loc, node)
         }
     }
-
-    while (frontier.isNotEmpty()) {
-        val current = frontier.remove()
-        if (current.location.id == 'E') {
-            return current
-        }
-
-        successors(current).forEach {
-            if (it.location !in explored) {
-                explored.add(it.location)
-                frontier.add(it)
-            }
-        }
-    }
-
-    return null
 }
 
 data class Node(val location: Location, val parent: Node?) {
