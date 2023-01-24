@@ -59,7 +59,6 @@ sealed class Packet : Comparable<Packet> {
 
 fun parse(str: String): Packet {
     val stack = Stack<Packet>()
-    stack.push(Packet.Sequence(mutableListOf()))
 
     var idx = 0
     while (idx < str.length) {
@@ -69,8 +68,11 @@ fun parse(str: String): Packet {
                 idx++
             }
             ']' -> {
-                val top = stack.pop()
-                (stack.peek() as Packet.Sequence).list.add(top)
+                // Every list (except for the outermost one), is nested in another list.
+                if (stack.size > 1) {
+                    val top = stack.pop()
+                    (stack.peek() as Packet.Sequence).list.add(top)
+                }
                 idx++
             }
             ',' -> {
@@ -87,5 +89,5 @@ fun parse(str: String): Packet {
         }
     }
 
-    return (stack.pop() as Packet.Sequence).list.first()
+    return stack.pop() as Packet.Sequence
 }
